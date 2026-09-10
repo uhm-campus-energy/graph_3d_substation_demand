@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electrical Demand — 3D Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg-0:#14171c;
+    --bg-1:#1b1f26;
+    --bg-2:#232830;
+    --line:#333944;
+    --ink-0:#f2f4f7;
+    --ink-1:#aab1bd;
+    --ink-2:#6f7683;
+    --accent:#5fb6ff;
+    --band-blue:#3b82c9;
+    --band-green:#3bb273;
+    --band-yellow:#e8b93b;
+    --band-red:#d4483f;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:radial-gradient(ellipse at 20% -10%, #232a35 0%, var(--bg-0) 55%);
+    color:var(--ink-0);
+    font-family:var(--sans);
+  }
+  .app{
+    display:flex; flex-direction:column; height:100vh; min-height:600px;
+  }
+  header{
+    padding:18px 26px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+    flex-wrap:wrap;
+  }
+  header h1{
+    font-size:19px; font-weight:600; margin:0; letter-spacing:0.2px;
+  }
+  header .sub{
+    font-size:12.5px; color:var(--ink-1); font-family:var(--mono);
+  }
+  .layout{
+    flex:1; display:flex; min-height:0;
+  }
+  .panel{
+    width:262px; flex-shrink:0;
+    background:var(--bg-1);
+    border-right:1px solid var(--line);
+    padding:18px 16px 16px;
+    overflow-y:auto;
+  }
+  .panel h2{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:0.09em;
+    color:var(--ink-2); margin:0 0 10px;
+    font-family:var(--mono);
+  }
+  .group{ margin-bottom:22px; }
+  .field{ margin-bottom:9px; }
+  .field label{
+    display:block; font-size:11.5px; color:var(--ink-1); margin-bottom:4px;
+  }
+  input[type=date]{
+    width:100%; background:var(--bg-2); border:1px solid var(--line);
+    color:var(--ink-0); padding:6px 8px; border-radius:5px; font-size:12.5px;
+    font-family:var(--mono); colorScheme: dark;
+  }
+  input[type=date]:focus, button:focus-visible{
+    outline:2px solid var(--accent); outline-offset:1px;
+  }
+  .btnrow{ display:flex; flex-wrap:wrap; gap:6px; }
+  button.chip{
+    background:var(--bg-2); border:1px solid var(--line); color:var(--ink-1);
+    padding:5px 9px; border-radius:99px; font-size:11.5px; cursor:pointer;
+    font-family:var(--sans); transition:all .12s ease;
+  }
+  button.chip:hover{ border-color:var(--accent); color:var(--ink-0); }
+  button.chip.active{ background:var(--accent); border-color:var(--accent); color:#0b1420; font-weight:600;}
+  button.apply{
+    width:100%; background:var(--accent); border:none; color:#0b1420;
+    padding:8px 10px; border-radius:6px; font-weight:600; font-size:12.5px;
+    cursor:pointer; margin-top:8px;
+  }
+  button.apply:hover{ filter:brightness(1.08); }
+  .viewbtns{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .viewbtns button{ text-align:left; }
+  .stat{
+    display:flex; justify-content:space-between; font-size:12px; padding:4px 0;
+    border-bottom:1px dashed var(--line); font-family:var(--mono);
+  }
+  .stat span:first-child{ color:var(--ink-2); }
+  .legend-item{ display:flex; align-items:center; gap:8px; font-size:12px; padding:3px 0; color:var(--ink-1); }
+  .swatch{ width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+  .plotwrap{
+    flex:1; position:relative; min-width:0;
+  }
+  #plot{ position:absolute; inset:0; }
+  .hint{
+    position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+    font-size:11px; color:var(--ink-2); font-family:var(--mono);
+    background:rgba(20,23,28,0.7); padding:4px 10px; border-radius:99px;
+    border:1px solid var(--line); pointer-events:none;
+  }
+  .loading{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--ink-1); font-family:var(--mono); font-size:13px; background:var(--bg-0);
+    z-index:5;
+  }
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  @media (max-width: 760px){
+    .layout{ flex-direction:column; }
+    .panel{ width:100%; border-right:none; border-bottom:1px solid var(--line); max-height:42vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Electrical Demand — 3D Explorer</h1>
+    </div>
+    <div class="sub" id="rangeLabel">loading…</div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="group">
+        <h2>Date range</h2>
+        <div class="field">
+          <label for="startDate">Start</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="field">
+          <label for="endDate">End</label>
+          <input type="date" id="endDate">
+        </div>
+        <div class="btnrow" id="presetRow"></div>
+        <button class="apply" id="applyBtn">Update chart</button>
+      </div>
+
+      <div class="group">
+        <h2>Viewing angle</h2>
+        <div class="viewbtns">
+          <button class="chip" data-view="default">Angled</button>
+          <button class="chip" data-view="top">Top-down</button>
+          <button class="chip" data-view="front">Front</button>
+          <button class="chip" data-view="side">Side</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h2>Demand (kW) — selection</h2>
+        <div id="statsBox"></div>
+      </div>
+
+      <div class="group">
+        <h2>Legend</h2>
+        <div id="legendBox"></div>
+      </div>
+    </aside>
+
+    <div class="plotwrap">
+      <div id="loadingMsg" class="loading">Rendering surface…</div>
+      <div id="plot"></div>
+      <div class="hint">Drag to rotate · scroll to zoom · right-click drag to pan</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+const dates = DATA.dates;           // ISO strings, ascending
+const times = DATA.times;           // "HH:MM" x96
+const zAll  = DATA.z;                // [dates][times] kW
+
+const dateObjs = dates.map(d => new Date(d + 'T00:00:00'));
+const MIN_DATE = dateObjs[0];
+const MAX_DATE = dateObjs[dateObjs.length - 1];
+
+function fmt(d){ return d.toISOString().slice(0,10); }
+function pretty(d){ return d.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'}); }
+
+// ---------- global data range / color bands ----------
+let GLOBAL_MIN = Infinity, GLOBAL_MAX = -Infinity;
+for (const row of zAll) for (const v of row) { if (v < GLOBAL_MIN) GLOBAL_MIN = v; if (v > GLOBAL_MAX) GLOBAL_MAX = v; }
+
+const bandColors = ['#3b82c9', '#3bb273', '#e8b93b', '#d4483f'];
+function buildColorscale(min, max){
+  // 4 discrete-ish bands across the observed range, blended at edges for a smooth surface
+  const stops = [0, 0.34, 0.35, 0.64, 0.65, 0.84, 0.85, 1.0];
+  const colors = [bandColors[0], bandColors[0], bandColors[1], bandColors[1], bandColors[2], bandColors[2], bandColors[3], bandColors[3]];
+  return stops.map((s,i) => [s, colors[i]]);
+}
+
+function renderLegend(min, max){
+  const box = document.getElementById('legendBox');
+  const bounds = [min, min + (max-min)*0.35, min + (max-min)*0.65, min + (max-min)*0.85, max];
+  box.innerHTML = '';
+  for (let i=0;i<4;i++){
+    const el = document.createElement('div');
+    el.className = 'legend-item';
+    el.innerHTML = `<span class="swatch" style="background:${bandColors[i]}"></span>${Math.round(bounds[i]).toLocaleString()} – ${Math.round(bounds[i+1]).toLocaleString()} kW`;
+    box.appendChild(el);
+  }
+}
+
+// ---------- filtering + decimation ----------
+function indexRange(startD, endD){
+  let s = 0, e = dateObjs.length - 1;
+  while (s < dateObjs.length && dateObjs[s] < startD) s++;
+  while (e >= 0 && dateObjs[e] > endD) e--;
+  return [s, e];
+}
+
+const MAX_ROWS = 380; // cap for smooth interaction
+
+function sliceData(startD, endD){
+  const [s, e] = indexRange(startD, endD);
+  if (e < s) return null;
+  const nDays = e - s + 1;
+  const step = Math.max(1, Math.ceil(nDays / MAX_ROWS));
+  const dSlice = [], zSlice = [];
+  for (let i = s; i <= e; i += step){
+    dSlice.push(dates[i]);
+    zSlice.push(zAll[i]);
+  }
+  return { dSlice, zSlice, step, nDays };
+}
+
+// ---------- plotting ----------
+let currentMin = GLOBAL_MIN, currentMax = GLOBAL_MAX;
+
+function draw(startD, endD){
+  const sliced = sliceData(startD, endD);
+  if (!sliced){ return; }
+  const { dSlice, zSlice, step, nDays } = sliced;
+
+  let mn = Infinity, mx = -Infinity;
+  for (const row of zSlice) for (const v of row) { if (v < mn) mn = v; if (v > mx) mx = v; }
+  currentMin = mn; currentMax = mx;
+
+  const trace = {
+    type: 'surface',
+    x: times,
+    y: dSlice,
+    z: zSlice,
+    colorscale: buildColorscale(mn, mx),
+    cmin: mn,
+    cmax: mx,
+    showscale: false,
+    contours: {
+      z: { show: false }
+    },
+    lighting: { ambient:0.55, diffuse:0.7, roughness:0.85, specular:0.25, fresnel:0.15 },
+    lightposition: { x: 100, y: 200, z: 500 }
+  };
+
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    margin: {l:0, r:0, t:10, b:0},
+    font: { color: '#aab1bd', family: 'Inter, sans-serif', size: 11 },
+    scene: {
+      xaxis: { title:'Time of day', color:'#8890a0', gridcolor:'#333944', backgroundcolor:'rgba(0,0,0,0)',
+                tickvals:['00:00','04:00','08:00','12:00','16:00','20:00'] },
+      yaxis: { title:'Date', color:'#8890a0', gridcolor:'#333944', backgroundcolor:'rgba(0,0,0,0)' },
+      zaxis: { title:'Demand (kW)', color:'#8890a0', gridcolor:'#333944', backgroundcolor:'rgba(0,0,0,0)' },
+      camera: currentCamera(),
+      aspectratio: {x:1.1, y:1.9, z:0.7}
+    }
+  };
+
+  Plotly.react('plot', [trace], layout, {responsive:true, displaylogo:false,
+    modeBarButtonsToRemove:['resetCameraLastSave3d']});
+
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('rangeLabel').textContent =
+    `${pretty(startD)} → ${pretty(endD)}  ·  ${nDays.toLocaleString()} day${nDays===1?'':'s'} shown${step>1 ? ' (every '+step+(step===2?'nd':step===3?'rd':'th')+' day)' : ''}`;
+  renderStats(mn, mx, zSlice);
+  renderLegend(mn, mx);
+}
+
+function renderStats(mn, mx, zSlice){
+  let sum=0, n=0, peakDay=null, peakVal=-Infinity;
+  for (let i=0;i<zSlice.length;i++){
+    let rowMax=-Infinity;
+    for (const v of zSlice[i]){ sum+=v; n++; if(v>rowMax) rowMax=v; }
+    if (rowMax>peakVal){ peakVal=rowMax; }
+  }
+  const avg = sum/n;
+  const box = document.getElementById('statsBox');
+  box.innerHTML = `
+    <div class="stat"><span>Minimum</span><span>${Math.round(mn).toLocaleString()}</span></div>
+    <div class="stat"><span>Maximum</span><span>${Math.round(mx).toLocaleString()}</span></div>
+    <div class="stat"><span>Average</span><span>${Math.round(avg).toLocaleString()}</span></div>
+  `;
+}
+
+// ---------- camera presets ----------
+const cameraPresets = {
+  default: { eye:{x:1.7, y:-1.9, z:0.9} },
+  top:     { eye:{x:0.01, y:0.01, z:2.6}, up:{x:0,y:1,z:0} },
+  front:   { eye:{x:0.02, y:-2.6, z:0.4} },
+  side:    { eye:{x:2.6, y:0.02, z:0.4} }
+};
+let activeView = 'default';
+function currentCamera(){ return cameraPresets[activeView]; }
+
+document.querySelectorAll('.viewbtns .chip').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.viewbtns .chip').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeView = btn.dataset.view;
+    Plotly.relayout('plot', {'scene.camera': cameraPresets[activeView]});
+  });
+});
+document.querySelector('.viewbtns .chip[data-view=default]').classList.add('active');
+
+// ---------- date range controls ----------
+const startInput = document.getElementById('startDate');
+const endInput = document.getElementById('endDate');
+startInput.min = fmt(MIN_DATE); startInput.max = fmt(MAX_DATE);
+endInput.min = fmt(MIN_DATE); endInput.max = fmt(MAX_DATE);
+
+function setRangeInputs(s,e){ startInput.value = fmt(s); endInput.value = fmt(e); }
+
+function applyRange(){
+  const s = new Date(startInput.value + 'T00:00:00');
+  const e = new Date(endInput.value + 'T00:00:00');
+  if (isNaN(s) || isNaN(e) || s > e) return;
+  document.getElementById('loadingMsg').style.display = 'flex';
+  setTimeout(()=>draw(s, e), 10);
+}
+document.getElementById('applyBtn').addEventListener('click', applyRange);
+
+// ---------- presets ----------
+const presetRow = document.getElementById('presetRow');
+const presets = [
+  { label:'Last 12 mo', fn: ()=>[new Date(Math.max(MIN_DATE, addDays(MAX_DATE,-365))), MAX_DATE] },
+  { label:'Last 2 yr',  fn: ()=>[new Date(Math.max(MIN_DATE, addDays(MAX_DATE,-730))), MAX_DATE] },
+  { label:'Last 5 yr',  fn: ()=>[new Date(Math.max(MIN_DATE, addDays(MAX_DATE,-1826))), MAX_DATE] },
+  { label:'All data',   fn: ()=>[MIN_DATE, MAX_DATE] },
+];
+function addDays(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+
+presets.forEach(p=>{
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = p.label;
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#presetRow .chip').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const [s,e] = p.fn();
+    setRangeInputs(s,e);
+    applyRange();
+  });
+  presetRow.appendChild(b);
+});
+
+// per-calendar-year quick buttons
+const years = [...new Set(dateObjs.map(d=>d.getFullYear()))];
+years.forEach(y=>{
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = y;
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#presetRow .chip').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const s = new Date(Math.max(MIN_DATE, new Date(y+'-01-01')));
+    const e = new Date(Math.min(MAX_DATE, new Date(y+'-12-31')));
+    setRangeInputs(s,e);
+    applyRange();
+  });
+  presetRow.appendChild(b);
+});
+
+// ---------- init: default to last 12 months ----------
+const initStart = new Date(Math.max(MIN_DATE, addDays(MAX_DATE,-365)));
+setRangeInputs(initStart, MAX_DATE);
+draw(initStart, MAX_DATE);
+[...presetRow.children].find(b=>b.textContent==='Last 12 mo')?.classList.add('active');
+</script>
+</body>
+</html>
