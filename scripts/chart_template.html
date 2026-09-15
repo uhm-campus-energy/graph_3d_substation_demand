@@ -189,22 +189,32 @@ function pretty(d){ return d.toLocaleDateString('en-US', {year:'numeric', month:
 let GLOBAL_MIN = Infinity, GLOBAL_MAX = -Infinity;
 for (const row of zAll) for (const v of row) { if (v < GLOBAL_MIN) GLOBAL_MIN = v; if (v > GLOBAL_MAX) GLOBAL_MAX = v; }
 
-const bandColors = ['#3b82c9', '#3bb273', '#e8b93b', '#d4483f'];
-function buildColorscale(min, max){
-  // 4 discrete-ish bands across the observed range, blended at edges for a smooth surface
-  const stops = [0, 0.34, 0.35, 0.64, 0.65, 0.84, 0.85, 1.0];
-  const colors = [bandColors[0], bandColors[0], bandColors[1], bandColors[1], bandColors[2], bandColors[2], bandColors[3], bandColors[3]];
-  return stops.map((s,i) => [s, colors[i]]);
+const COLOR_MIN = 0;
+const COLOR_MAX = 20000;
+const bandColors = ['#3b82c9', '#3bb273', '#e8b93b', '#d4483f', '#7c3aed'];
+const bandEdgesKw = [0, 4000, 8000, 12000, 16000, 20000];
+
+function buildColorscale(){
+  // Fixed kW bands for every date range, blended slightly at edges
+  const stops = [];
+  const colors = [];
+  for (let i = 0; i < bandEdgesKw.length - 1; i++){
+    const a = (bandEdgesKw[i] - COLOR_MIN) / (COLOR_MAX - COLOR_MIN);
+    const b = (bandEdgesKw[i + 1] - COLOR_MIN) / (COLOR_MAX - COLOR_MIN);
+    stops.push(a, Math.max(a, b - 0.005));
+    colors.push(bandColors[i], bandColors[i]);
+  }
+  stops[stops.length - 1] = 1;
+  return stops.map((s, i) => [s, colors[i]]);
 }
 
-function renderLegend(min, max){
+function renderLegend(){
   const box = document.getElementById('legendBox');
-  const bounds = [min, min + (max-min)*0.35, min + (max-min)*0.65, min + (max-min)*0.85, max];
   box.innerHTML = '';
-  for (let i=0;i<4;i++){
+  for (let i = 0; i < bandColors.length; i++){
     const el = document.createElement('div');
     el.className = 'legend-item';
-    el.innerHTML = `<span class="swatch" style="background:${bandColors[i]}"></span>${Math.round(bounds[i]).toLocaleString()} – ${Math.round(bounds[i+1]).toLocaleString()} kW`;
+    el.innerHTML = `<span class="swatch" style="background:${bandColors[i]}"></span>${bandEdgesKw[i].toLocaleString()} – ${bandEdgesKw[i + 1].toLocaleString()} kW`;
     box.appendChild(el);
   }
 }
@@ -249,9 +259,9 @@ function draw(startD, endD){
     x: times,
     y: dSlice,
     z: zSlice,
-    colorscale: buildColorscale(mn, mx),
-    cmin: mn,
-    cmax: mx,
+    colorscale: buildColorscale(),
+    cmin: COLOR_MIN,
+    cmax: COLOR_MAX,
     showscale: false,
     contours: {
       z: { show: false }
@@ -282,7 +292,7 @@ function draw(startD, endD){
   document.getElementById('rangeLabel').textContent =
     `${pretty(startD)} → ${pretty(endD)}  ·  ${nDays.toLocaleString()} day${nDays===1?'':'s'} shown${step>1 ? ' (every '+step+(step===2?'nd':step===3?'rd':'th')+' day)' : ''}`;
   renderStats(mn, mx, zSlice);
-  renderLegend(mn, mx);
+  renderLegend();
 }
 
 function renderStats(mn, mx, zSlice){
