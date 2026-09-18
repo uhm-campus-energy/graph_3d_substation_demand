@@ -287,7 +287,9 @@ function draw(startD, endD){
   };
 
   Plotly.react('plot', [trace], layout, {responsive:true, displaylogo:false,
-    modeBarButtonsToRemove:['resetCameraLastSave3d']});
+    modeBarButtonsToRemove:['resetCameraLastSave3d']}).then(() => {
+    Plotly.relayout('plot', {'scene.camera': currentCamera()});
+  });
 
   document.getElementById('loadingMsg').style.display = 'none';
   document.getElementById('rangeLabel').textContent =
@@ -314,7 +316,7 @@ function renderStats(mn, mx, zSlice){
 
 // ---------- camera presets ----------
 const cameraPresets = {
-  default: { eye:{x:1.7, y:-1.9, z:0.9} },
+  default: { eye:{x:2.6, y:1.40, z:0.6} },
   top:     { eye:{x:0.01, y:0.01, z:2.6}, up:{x:0,y:1,z:0} },
   front:   { eye:{x:0.02, y:-2.6, z:0.4} },
   side:    { eye:{x:2.6, y:0.02, z:0.4} }
@@ -388,11 +390,10 @@ years.forEach(y=>{
   presetRow.appendChild(b);
 });
 
-// ---------- init: default to last 12 months ----------
-const initStart = new Date(Math.max(MIN_DATE, addDays(MAX_DATE,-365)));
-setRangeInputs(initStart, MAX_DATE);
-draw(initStart, MAX_DATE);
-[...presetRow.children].find(b=>b.textContent==='Last 12 mo')?.classList.add('active');
+// ---------- init: default to all data ----------
+setRangeInputs(MIN_DATE, MAX_DATE);
+draw(MIN_DATE, MAX_DATE);
+[...presetRow.children].find(b=>b.textContent==='All data')?.classList.add('active');
 </script>
 </body>
 </html>
