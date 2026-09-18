@@ -192,7 +192,8 @@ for (const row of zAll) for (const v of row) { if (v < GLOBAL_MIN) GLOBAL_MIN = 
 const COLOR_MIN = 0;
 const COLOR_MAX = 20000;
 const bandColors = ['#3b82c9', '#3bb273', '#e8b93b', '#d4483f', '#7c3aed'];
-const bandEdgesKw = [0, 4000, 8000, 12000, 16000, 20000];
+// Fixed for every year, but concentrated where demand actually lives (~9–18 MW).
+const bandEdgesKw = [0, 10000, 11500, 13000, 15500, 20000];
 
 function buildColorscale(){
   // Fixed kW bands for every date range, blended slightly at edges
