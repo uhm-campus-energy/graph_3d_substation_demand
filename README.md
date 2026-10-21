@@ -1,0 +1,1 @@
+Currently you're forced to download all of the files in order to see the 3D graph. Working on trying to make this a github page in order to be able to share the visualization with a website instead of having to download files.
